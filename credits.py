@@ -2,11 +2,13 @@ from animation_functions import debug_info
 from CLIRender.classes import enable_ansi
 from colorama import Fore, Style
 
-import keyboard
 import time
 import os
 import random
 from just_playback import Playback
+
+from pynput import keyboard
+from threading import Thread
 
 from animation_scenes import all_scenes, canvas
 from string_defs import data_strings
@@ -282,134 +284,145 @@ controller = am.SceneManager((*all_scenes, counter), (
     am.Event(6508, am.Event.swap_scene("clear"))
 ))
 
-
-# class MixerWrapper:
-#     def __init__(self):
-#         self.is_paused = False
-#
-#     def toggle_music(self):
-#         if self.is_paused:
-#             pygame.mixer.music.unpause()
-#             self.is_paused = False
-#         else:
-#             pygame.mixer.music.pause()
-#             self.is_paused = True
-#
-#
-# ffwing = MixerWrapper()
-
-paused_this_frame = False
-ff_this_frame = False
-
 filename = "media/credits.wav"
 
 playback = Playback()
 playback.load_file(filename)
 
-print("\033[1;1Hskips\n\n1 | start\n2 | title\n3 | funding\n4 | loading\n5 | break\n6 | final")
+def clear_screen():
+    if os.name == "nt":
+        os.system("cls")
+    elif os.name == "posix":
+        os.system("clear")
+    else:
+        print("\033[2J")
 
-# Skips forward to the title scene
+current_key = ""
+def on_press(key, abortKey):
+    global current_key
+    try:
+        current_key = key.char  # single-char keys
+    except:
+        current_key = key.name  # other keys
+    if current_key in abortKey:
+        return False  # close the listener
+
+def on_release(key):
+    global current_key
+    current_key = ""
 time_menu = time.time()
-while time.time() - 2 < time_menu:
-    if keyboard.is_pressed("1"):
-        time_menu = 99999999999999999999
-        break
-    elif keyboard.is_pressed("2"):
-        skip_beats(controller, 1000, 1081)
-        time_menu = 99999999999999999999
-        break
-    elif keyboard.is_pressed("3"):
-        skip_beats(controller, 1770, 1851)
-        controller.events[1849] = am.Event(1849, am.Event.layer_scene("redraw_ui")),
-        controller.events[1860] = am.Event(1860, am.Event.remove_scene("redraw_ui")),
-        time_menu = 99999999999999999999
-        break
-    elif keyboard.is_pressed("4"):
-        skip_beats(controller, 3040, 3133)
-        time_menu = 99999999999999999999
-        break
-    elif keyboard.is_pressed("5"):
-        skip_beats(controller, 3780, 3898)
-        time_menu = 99999999999999999999
-        break
-    elif keyboard.is_pressed("6"):
-        skip_beats(controller, 5420, 5501)
-        time_menu = 99999999999999999999
-        break
 
-    time.sleep(0.01)
+def main_menu(controller):
+    global current_key, time_menu
+    # Skips forward to the title scene
 
+    while time.time() - 2 < time_menu:
 
-if os.name == "nt":
-    os.system("cls")
-elif os.name == "posix":
-    os.system("clear")
-else:
-    print("\033[2J")
+        if current_key=="a":
+            time_menu = 99999999999999999999
+            print("aled")
+            break
+        elif current_key=="b":
+            skip_beats(controller, 1000, 1081)
+            time_menu = 99999999999999999999
+            break
+        elif current_key=="c":
+            skip_beats(controller, 1770, 1851)
+            controller.events[1849] = am.Event(1849, am.Event.layer_scene("redraw_ui")),
+            controller.events[1860] = am.Event(1860, am.Event.remove_scene("redraw_ui")),
+            time_menu = 99999999999999999999
+            break
+        elif current_key=="d":
+            skip_beats(controller, 3040, 3133)
+            time_menu = 99999999999999999999
+            break
+        elif current_key=="e":
+            skip_beats(controller, 3780, 3898)
+            time_menu = 99999999999999999999
+            break
+        elif current_key=="f":
+            skip_beats(controller, 5420, 5501)
+            time_menu = 99999999999999999999
+            break
 
-# wave_obj = sa.WaveObject.from_wave_file(filename)
-# play_obj = wave_obj.play()
-playback.play()
-playback.seek(skip_by)
+        time.sleep(0.01)
 
-time_start = time.time()
-last_update = time.time()
-prev_pos = 0
+if __name__ == '__main__':
+    clear_screen()
+    print("\033[1;1Hskips\n\nA | start\nB | title\nC | funding\nD | loading\nE | break\nF | final")
+    listener = keyboard.Listener(on_press=lambda event: on_press(event, abortKey=["a","b","c","d","e","f"]), on_release=on_release)
+    listener.start()  # start to listen for keyboard inputs on a separate thread
 
-while playback.active:
-    # (17.06.21) might have broken, i used a -1 beat offset here to try and sync up everything better
-    # since i originally used 1-indexed beats
-    #
-    # (24.06.21) update chat it didnt break
+    # start thread to display the main menu
+    Thread(target=lambda: main_menu(controller), args=(), name='main_menu', daemon=True).start()
 
-    # next_beat = (time.time() - time_start - offset) > ((beat - 1) * delay)
-    next_beat = (playback.curr_pos - offset) > ((beat - 1) * delay)
-    need_update = time.time() - (1/30) > last_update
-    # print(pygame.mixer.music.get_pos())
+    listener.join() # wait for abortKey
 
-    if next_beat:
-        controller.request_next()
-        canvas.render_all()
-        last_frames.append(time.time())
-        if len(last_frames) > 10:
-            last_frames.pop(0)
+    clear_screen()
 
-        beat += 1
-
-    if need_update:
-        if keyboard.is_pressed("p"):
-            if not paused_this_frame:
-                if playback.paused:
-                    playback.resume()
-                else:
-                    playback.pause()
-
-                paused_this_frame = True
-        else:
-            paused_this_frame = False
-
-        if keyboard.is_pressed(","):
-            if not ff_this_frame:
-                ff_this_frame = True
-            else:
-                playback.seek(playback.curr_pos + delay * 3)
-
-        if keyboard.is_pressed("."):
-            if not ff_this_frame:
-                ff_this_frame = True
-            else:
-                playback.seek(playback.curr_pos + delay * 7)
-
-        if keyboard.is_pressed("/"):
-            if not ff_this_frame:
-                ff_this_frame = True
-            else:
-                playback.seek(playback.curr_pos + delay * 15)
-        # else:
-        #     # print("n", ff_this_frame, pygame.mixer.music.get_pos() + prev_pos, prev_pos)
-        #     if ff_this_frame:
-        #         # print("unpausing now")
-        #         ff_this_frame = False
-        #         ffwing.toggle_music()
+    def playback_loop(playback, controller, canvas):
+        global current_key, last_frames, beat, delay
+        playback.play()
+        playback.seek(skip_by)
 
         last_update = time.time()
+        paused_this_frame = False
+        ff_this_frame = False
+        while playback.active:
+            # (17.06.21) might have broken, i used a -1 beat offset here to try and sync up everything better
+            # since i originally used 1-indexed beats
+            #
+            # (24.06.21) update chat it didnt break
+
+            next_beat = (playback.curr_pos - offset) > ((beat - 1) * delay)
+            need_update = time.time() - (1/30) > last_update
+
+            if next_beat:
+                controller.request_next()
+                canvas.render_all()
+                last_frames.append(time.time())
+                if len(last_frames) > 10:
+                    last_frames.pop(0)
+
+                beat += 1
+
+            if need_update:
+                if current_key=="p":
+                    if not paused_this_frame:
+                        if playback.paused:
+                            playback.resume()
+                        else:
+                            playback.pause()
+
+                        paused_this_frame = True
+                else:
+                    paused_this_frame = False
+
+                if current_key=="k":
+                    if not ff_this_frame:
+                        ff_this_frame = True
+                    else:
+                        playback.seek(playback.curr_pos + delay * 3)
+
+                if current_key=="l":
+                    if not ff_this_frame:
+                        ff_this_frame = True
+                    else:
+                        playback.seek(playback.curr_pos + delay * 7)
+
+                if current_key=="m":
+                    if not ff_this_frame:
+                        ff_this_frame = True
+                    else:
+                        playback.seek(playback.curr_pos + delay * 15)
+
+                last_update = time.time()
+
+    k = ""
+    listener = keyboard.Listener(on_press=lambda event: on_press(event, abortKey=[]), on_release=on_release, abortKey=[])
+    listener.start()  # start to listen for keyboard inputs on a separate thread
+
+    # start playback loop
+    Thread(target=lambda: playback_loop(playback, controller, canvas), args=(), name='playback_loop', daemon=True).start()
+
+    listener.join() # wait for abortKey
